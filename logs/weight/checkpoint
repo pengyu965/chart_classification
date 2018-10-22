@@ -1,0 +1,2 @@
+model_checkpoint_path: "chartclassification-epoch100-batchsize50-lr0.01"
+all_model_checkpoint_paths: "chartclassification-epoch100-batchsize50-lr0.01"
