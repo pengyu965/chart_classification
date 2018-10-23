@@ -9,6 +9,7 @@ import platform
 import argparse
 import numpy as np
 import tensorflow as tf
+import scipy.misc
 
 sys.path.append('../')
 import loader as loader
@@ -19,6 +20,12 @@ from src.helper.evaluator import Evaluator
 LOGS_ROOT = '../logs/'
 LOG_PATH = LOGS_ROOT + '/log/'
 WEIGHT_PATH = LOGS_ROOT + '/weight/'
+
+DATA_ROOT = "../data/"
+TR_DATA_ROOT = DATA_ROOT + "/trdir/"
+VAL_DATA_ROOT = DATA_ROOT + "/valdir/"
+PRED_DATA_ROOT = DATA_ROOT + "/predictdir/"
+
 if os.path.exists(LOGS_ROOT) == False:
     os.mkdir(LOGS_ROOT)
 if os.path.exists(LOG_PATH) == False:
@@ -95,7 +102,7 @@ def train():
             print("[*]load success")
         # for epoch_id in range(FLAGS.maxepoch):
             # train one epoch
-        trainer.train_epoch(sess,"../trdir/","../valdir/",FLAGS.maxepoch, FLAGS.bsize, keep_prob=FLAGS.keep_prob, summary_writer=writer)
+        trainer.train_epoch(sess, TR_DATA_ROOT, VAL_DATA_ROOT,FLAGS.maxepoch, FLAGS.bsize, keep_prob=FLAGS.keep_prob, summary_writer=writer)
         # test the model on validation set after each epoch
         # trainer.valid_epoch(sess, dataflow=valid_data, summary_writer=writer)
         # saver.save(sess, '{}inception-cifar-epoch-{}'.format(WEIGHT_PATH, FLAGS.maxepoch))
@@ -129,20 +136,29 @@ def evaluate():
         # load pre-trained model cifar
         saver.restore(sess, '{}chartclassification-epoch{}-batchsize{}-lr{}'.format(WEIGHT_PATH, FLAGS.maxepoch, FLAGS.bsize, FLAGS.lr))
         print('training set:', end='')
-        trainer.valid_epoch(sess,"../trdir/",FLAGS.bsize)
+        trainer.valid_epoch(sess,TR_DATA_ROOT, FLAGS.bsize)
         print('Validation set:', end='')
-        trainer.valid_epoch(sess,"../valdir/",FLAGS.bsize)
+        trainer.valid_epoch(sess,VAL_DATA_ROOT,FLAGS.bsize)
 
 def predict():
     FLAGS = get_args()
     # Read Cifar label into a dictionary
-    label_dict = loader.load_label_dict(dataset='cifar')
-    # Create a Dataflow object for test images
-    image_data = loader.read_image(
-        im_name=FLAGS.im_name, n_channel=3,
-        data_dir=IM_PATH, batch_size=1, rescale=False)
+    # label_dict = loader.load_label_dict(dataset='cifar')
+    # # Create a Dataflow object for test images
+    # image_data = loader.read_image(
+    #     im_name=FLAGS.im_name, n_channel=3,
+    #     data_dir=IM_PATH, batch_size=1, rescale=False)
 
     # Create a testing GoogLeNet model
+    # label_dict = {}
+    # i = 0
+    # for file in os.listdir(TR_DATA_ROOT):
+    #     label_dict[i] = file 
+    #     i+=i 
+    # for file in os.listdir(PRED_DATA_ROOT):
+    #     img=scipy.misc.imread(PRED_DATA_ROOT+file).astype(np.float)
+
+
     test_model = GoogLeNet_cifar(
         n_channel=3, n_class=10, bn=True, sub_imagenet_mean=False)
     test_model.create_test_model()
@@ -150,22 +166,30 @@ def predict():
     with tf.Session() as sess:
         saver = tf.train.Saver()
         sess.run(tf.global_variables_initializer())
-        saver.restore(sess, '{}inception-cifar-epoch-{}'.format(LOG_PATH, FLAGS.load))
-        while image_data.epochs_completed < 1:
+        saver.restore(sess, '{}chartclassification-epoch{}-batchsize{}-lr{}'.format(WEIGHT_PATH, FLAGS.maxepoch, FLAGS.bsize, FLAGS.lr))
+        
+        label_dict = {}
+        i = 0
+        for file in os.listdir(TR_DATA_ROOT):
+            label_dict[i] = file 
+            i=i+1 
+
+        for file in os.listdir(PRED_DATA_ROOT):
+            img=[scipy.misc.imread(PRED_DATA_ROOT+file).astype(np.float)]
             # read batch files
-            batch_data = image_data.next_batch_dict()
+
             # get batch file names
-            batch_file_name = image_data.get_batch_file_name()[0]
             # get prediction results
             pred = sess.run(test_model.layers['top_5'],
-                            feed_dict={test_model.image: batch_data['image']})
+                            feed_dict={test_model.image: img})
             # display results
-            for re_prob, re_label, file_name in zip(pred[0], pred[1], batch_file_name):
-                print('===============================')
-                print('[image]: {}'.format(file_name))
-                for i in range(5):
-                    print('{}: probability: {:.02f}, label: {}'
-                          .format(i+1, re_prob[i], label_dict[re_label[i]]))
+            print('===============================')
+            print('[image]: {}'.format(file))
+            print('---')
+            for j in range(3): 
+                re_prob = pred[0][j]
+                re_label = pred[1][j]
+                print('{}: probability: {}, label: {}'.format(i+1, re_prob, label_dict[re_label]),'\n---')
 
 if __name__ == "__main__":
     FLAGS = get_args()
