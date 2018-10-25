@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # File: inception_cifar.py
-# Author: Qian Ge <geqian1001@gmail.com>
+
 
 import os
 import sys
@@ -10,6 +10,7 @@ import argparse
 import numpy as np
 import tensorflow as tf
 import scipy.misc
+import time
 
 sys.path.append('../')
 import loader as loader
@@ -23,8 +24,8 @@ WEIGHT_PATH = LOGS_ROOT + '/weight/'
 
 DATA_ROOT = "../data/"
 TR_DATA_ROOT = DATA_ROOT + "/trdir/"
-VAL_DATA_ROOT = DATA_ROOT + "/valdir/"
-PRED_DATA_ROOT = DATA_ROOT + "/predictdir/"
+VAL_DATA_ROOT = "../valdir/"
+PRED_DATA_ROOT = "../predictdir/"
 
 if os.path.exists(LOGS_ROOT) == False:
     os.mkdir(LOGS_ROOT)
@@ -91,23 +92,37 @@ def train():
 
     # create a Trainer object for training control
     trainer = Trainer(train_model, valid_model, init_lr=FLAGS.lr)
-
-    with tf.Session() as sess:
-        writer = tf.summary.FileWriter(LOG_PATH)
-        saver = tf.train.Saver()
-        sess.run(tf.global_variables_initializer())
-        writer.add_graph(sess.graph)
-        if os.path.exists('{}checkpoint'.format(WEIGHT_PATH)) == True:
-            saver.restore(sess, '{}chartclassification-epoch{}-batchsize{}-lr{}'.format(WEIGHT_PATH, FLAGS.maxepoch, FLAGS.bsize, FLAGS.lr))
-            print("[*]load success")
-        # for epoch_id in range(FLAGS.maxepoch):
-            # train one epoch
-        trainer.train_epoch(sess, TR_DATA_ROOT, VAL_DATA_ROOT,FLAGS.maxepoch, FLAGS.bsize, keep_prob=FLAGS.keep_prob, summary_writer=writer)
-        # test the model on validation set after each epoch
-        # trainer.valid_epoch(sess, dataflow=valid_data, summary_writer=writer)
-        # saver.save(sess, '{}inception-cifar-epoch-{}'.format(WEIGHT_PATH, FLAGS.maxepoch))
-        saver.save(sess, '{}chartclassification-epoch{}-batchsize{}-lr{}'.format(WEIGHT_PATH, FLAGS.maxepoch, FLAGS.bsize, FLAGS.lr))
-        writer.close()
+    
+    start_time = time.time()
+    loss = []
+    acc = []
+    j=1
+    for i in os.listdir(DATA_ROOT):
+        print("***\n***\nThe {}th Training\n***\n***".format(j))
+        with tf.Session() as sess:
+            writer = tf.summary.FileWriter(LOG_PATH)
+            saver = tf.train.Saver()
+            sess.run(tf.global_variables_initializer())
+            writer.add_graph(sess.graph)
+            # if os.path.exists('{}checkpoint'.format(WEIGHT_PATH)) == True:
+            #     saver.restore(sess, '{}chartclassification-epoch{}-batchsize{}-lr{}'.format(WEIGHT_PATH, FLAGS.maxepoch, FLAGS.bsize, FLAGS.lr))
+            #     print("[*]load success")
+            # for epoch_id in range(FLAGS.maxepoch):
+                # train one epoch
+            print("***\n***\nThe {}th Training\n***\n***".format(j))
+            tr_dir = DATA_ROOT+ i +"/preprocessdata1/"
+            val_dir = DATA_ROOT + i +"/preprocessdata2/"    
+            trainer.train_epoch(sess, tr_dir, val_dir, FLAGS.maxepoch, FLAGS.bsize, keep_prob=FLAGS.keep_prob, summary_writer=writer)
+            loss_e, acc_e = trainer.valid_epoch(sess, val_dir, FLAGS.bsize)
+            loss.append(loss_e)
+            acc.append(acc_e)
+            # test the model on validation set after each epoch
+            # trainer.valid_epoch(sess, dataflow=valid_data, summary_writer=writer)
+            # saver.save(sess, '{}inception-cifar-epoch-{}'.format(WEIGHT_PATH, FLAGS.maxepoch))
+            saver.save(sess, '{}chartclassification-epoch{}-batchsize{}-lr{}'.format(WEIGHT_PATH, FLAGS.maxepoch, FLAGS.bsize, FLAGS.lr))
+            writer.close()
+        j+=1
+    print("===\nTotal Time:{:.2f}, Average Loss:{:.4f}, Average Accuracy:{:.4f}\n===".format(time.time()-start_time, sum(loss)*1./5,sum(acc)*1./5))
 
 def evaluate():
     FLAGS = get_args()
@@ -135,8 +150,8 @@ def evaluate():
         sess.run(tf.global_variables_initializer())
         # load pre-trained model cifar
         saver.restore(sess, '{}chartclassification-epoch{}-batchsize{}-lr{}'.format(WEIGHT_PATH, FLAGS.maxepoch, FLAGS.bsize, FLAGS.lr))
-        print('training set:', end='')
-        trainer.valid_epoch(sess,TR_DATA_ROOT, FLAGS.bsize)
+        # print('training set:', end='')
+        # trainer.valid_epoch(sess,TR_DATA_ROOT, FLAGS.bsize)
         print('Validation set:', end='')
         trainer.valid_epoch(sess,VAL_DATA_ROOT,FLAGS.bsize)
 
@@ -170,9 +185,10 @@ def predict():
         
         label_dict = {}
         i = 0
-        for file in os.listdir(TR_DATA_ROOT):
+        for file in os.listdir(DATA_ROOT+"1/preprocessdata1"):
             label_dict[i] = file 
-            i=i+1 
+            i=i+1
+
 
         for file in os.listdir(PRED_DATA_ROOT):
             img=[scipy.misc.imread(PRED_DATA_ROOT+file).astype(np.float)]
@@ -189,7 +205,7 @@ def predict():
             for j in range(3): 
                 re_prob = pred[0][j]
                 re_label = pred[1][j]
-                print('{}: probability: {}, label: {}'.format(i+1, re_prob, label_dict[re_label]),'\n---')
+                print('{}: probability: {:.4f}, label: {}'.format(j+1, re_prob, label_dict[re_label]),'\n---')
 
 if __name__ == "__main__":
     FLAGS = get_args()

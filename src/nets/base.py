@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # File: base.py
-# Author: Qian Ge <geqian1001@gmail.com>
 
 import tensorflow as tf
 from abc import abstractmethod

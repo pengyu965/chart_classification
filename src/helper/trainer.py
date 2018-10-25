@@ -1,10 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # File: trainer.py
-# Author: Qian Ge <geqian1001@gmail.com>
+
 
 import os
 import sys
+import time
 import numpy as np
 import tensorflow as tf
 import scipy.misc
@@ -15,10 +16,11 @@ def display(global_step,
             scaler_sum_list,
             name_list,
             collection,
+            time,
             summary_val=None,
-            summary_writer=None,
+            summary_writer=None
             ):
-    print('[step: {}]'.format(global_step), end='')
+    print('[step: {}] [time: {:.2f}]'.format(global_step, time), end='')
     for val, name in zip(scaler_sum_list, name_list):
         print(' {}: {:.4f}'.format(name, val * 1. ), end='')
     print('')
@@ -51,7 +53,7 @@ class Trainer(object):
         self.global_step = 0
         self.epoch_id = 0
 
-    def train_epoch(self, sess, tr_dir,val_dir, epoch, batch_size, keep_prob=1., summary_writer=None):
+    def train_epoch(self, sess, tr_dir, val_dir, epoch, batch_size, keep_prob=1., summary_writer=None):
         # if self.epoch_id < 35:
         #     self._lr = self._init_lr
         # elif self.epoch_id < 50:
@@ -61,6 +63,7 @@ class Trainer(object):
         # self._t_model.set_is_training(True)
         display_name_list = ['loss', 'accuracy']
         cur_summary = None
+        start_time = time.time()
 
         # cur_epoch = self._train_data.epochs_completed
 
@@ -68,7 +71,8 @@ class Trainer(object):
         loss_sum = 0
         acc_sum = 0
         # self.epoch_id += 1
-
+        rank = 0
+        
         each_num = int(batch_size/10)
         lens=[]
         labeldic = {}
@@ -89,12 +93,18 @@ class Trainer(object):
 
         for ep in range(epoch):
             step = 0
-            if ep< epoch//3:
+            if ep < epoch//3:
                 self._lr = self._init_lr
-            elif ep< epoch*2//3:
+            elif ep < epoch*2//3:
                 self._lr = self._init_lr/10
             else:
                 self._lr = self._init_lr/100
+            # if ep< epoch//3:
+            #     self._lr = self._init_lr
+            # elif ep< epoch*2//3:
+            #     self._lr = self._init_lr/10
+            # else:
+            #     self._lr = self._init_lr/100
 
             for idi in range(idx):
                 batch_img = []
@@ -160,6 +170,7 @@ class Trainer(object):
                         [loss, acc],
                         display_name_list,
                         'train',
+                        time.time()-start_time,
                         summary_val=cur_summary,
                         summary_writer=summary_writer)
 
@@ -200,18 +211,21 @@ class Trainer(object):
                     [self._valid_loss_op, self._valid_accuracy_op], 
                     feed_dict={self._v_model.image: im,
                             self._v_model.label: label})
-
                 loss_val_sum += loss_val
                 acc_val_sum += acc_val
 
             print('[Valid]: [{}/{}]'.format(val_idi,val_idx), end='')
             display(self.global_step,
                     val_step,
-                    [loss_val_sum * 1.0/val_step, acc_val * 1.0/val_step],
+                    [loss_val_sum * 1./val_step, acc_val_sum * 1./val_step],
                     val_display_name_list,
                     'valid',
+                    time.time()-start_time,
                     summary_val=cur_val_summary,
-                    summary_writer=summary_writer)            
+                    summary_writer=summary_writer)
+
+            
+                       
             
             
 
@@ -269,6 +283,7 @@ class Trainer(object):
             acc_sum += acc
 
         print("loss:{:.4f} accuracy:{:.4f}".format(loss_sum * 1./idx, acc_sum * 1./idx))
+        return loss_sum * 1./idx, acc_sum * 1./idx
         # display(None,
         #         idx,
         #         [loss_sum *1./idx, acc_sum*1./idx],

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # File: googlenet.py
-# Author: Qian Ge <geqian1001@gmail.com>
+
 
 import numpy as np
 import tensorflow as tf
